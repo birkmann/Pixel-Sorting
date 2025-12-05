@@ -1,6 +1,9 @@
 from pillow_heif import register_heif_opener
 from PIL import Image
+import os
+import uuid
 import numpy as np
+import random
 from datetime import datetime
 from scipy import ndimage
 from typing import Literal
@@ -60,7 +63,7 @@ def pixel_sort_columns(array, mask_type, sort_type,
     """
     array: numpy array shape (H, W, 3), dtype uint8
     """
-    height, width, colour = arr.shape
+    height, width, colour = array.shape
     output = array.copy()
 
     if pre_loaded_mask is not None:
@@ -97,7 +100,7 @@ def pixel_sort_rows(array, mask_type, sort_type,
     """
     array: numpy array shape (H, W, 3), dtype uint8
     """
-    height, width, colour = arr.shape
+    height, width, colour = array.shape
     output = array.copy()
 
     if pre_loaded_mask is not None:
@@ -179,29 +182,66 @@ def pixel_sort_diagonals(array, mask_type, sort_type,
     return out
 
 if __name__ == "__main__":
-    output_image_name = "pixel_sorted_" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".png"
+    input_dir = "inputs"
+    output_dir = "outputs"
 
-    img = Image.open("inputs/IMG_3911.heic").convert("RGB")
-    arr = np.asarray(img)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
-    res = pixel_sort_rows(
-        arr,
-        mask_type="sobel_edges",
-        sort_type="by_luminance",
-        threshold=100,
-        min_segment_len=20,
-        reverse=False
-    )
+    if not os.path.exists(input_dir):
+        os.makedirs(input_dir)
+        print(f"Created '{input_dir}' directory. Please place your images there and run the script again.")
+        exit()
 
-    res = pixel_sort_diagonals(
-        res,
-        mask_type="luminance",
-        sort_type="by_hue",
-        threshold=100,
-        min_segment_len=20,
-        reverse=True
-    )
+    supported_extensions = ('.png', '.jpg', '.jpeg', '.heic', '.bmp', '.tiff')
+    files = [f for f in os.listdir(input_dir) if f.lower().endswith(supported_extensions)]
 
-    out_img = Image.fromarray(res)
-    out_img.save(output_image_name)
-    print(output_image_name)
+    if not files:
+        print(f"No images found in '{input_dir}'.")
+        exit()
+
+    for filename in files:
+        print(f"Processing {filename}...")
+        file_path = os.path.join(input_dir, filename)
+        
+        try:
+            img = Image.open(file_path).convert("RGB")
+            arr = np.asarray(img)
+
+            # Randomize parameters for variation
+            thresh1 = random.randint(50, 200)
+            min_len1 = random.randint(5, 50)
+            
+            thresh2 = random.randint(50, 200)
+            min_len2 = random.randint(5, 50)
+
+            print(f"  Iteration 1: threshold={thresh1}, min_len={min_len1}")
+            res = pixel_sort_rows(
+                arr,
+                mask_type="sobel_edges",
+                sort_type="by_hue",
+                threshold=thresh1,
+                min_segment_len=min_len1,
+                reverse=False
+            )
+
+            print(f"  Iteration 2: threshold={thresh2}, min_len={min_len2}")
+            res = pixel_sort_diagonals(
+                res,
+                mask_type="luminance",
+                sort_type="by_hue",
+                threshold=thresh2,
+                min_segment_len=min_len2,
+                reverse=True
+            )
+
+            unique_hash = str(uuid.uuid4())[:8]
+            output_filename = f"pixel_sorted_{os.path.splitext(filename)[0]}_{unique_hash}.png"
+            output_path = os.path.join(output_dir, output_filename)
+            
+            out_img = Image.fromarray(res)
+            out_img.save(output_path)
+            print(f"Saved to {output_path}")
+            
+        except Exception as e:
+            print(f"Error processing {filename}: {e}")

@@ -7,9 +7,49 @@ import random
 from datetime import datetime
 from scipy import ndimage
 from typing import Literal
-from matplotlib.colors import rgb_to_hsv
 
 register_heif_opener()
+
+def rgb_to_hsv_numpy(arr):
+    """
+    Vectorized RGB to HSV conversion using numpy.
+    arr: numpy array of shape (..., 3) with values in [0, 1]
+    Returns: numpy array of shape (..., 3) with values in [0, 1]
+    """
+    r = arr[..., 0]
+    g = arr[..., 1]
+    b = arr[..., 2]
+
+    maxc = np.maximum(np.maximum(r, g), b)
+    minc = np.minimum(np.minimum(r, g), b)
+    v = maxc
+
+    deltac = maxc - minc
+
+    s = np.zeros_like(v)
+    # avoid division by zero
+    mask = maxc > 0
+    s[mask] = deltac[mask] / maxc[mask]
+
+    h = np.zeros_like(v)
+    # avoid division by zero
+    mask = deltac > 0
+
+    # r is max
+    idx = (r == maxc) & mask
+    h[idx] = (g[idx] - b[idx]) / deltac[idx]
+
+    # g is max
+    idx = (g == maxc) & mask
+    h[idx] = 2.0 + (b[idx] - r[idx]) / deltac[idx]
+
+    # b is max
+    idx = (b == maxc) & mask
+    h[idx] = 4.0 + (r[idx] - g[idx]) / deltac[idx]
+
+    h = (h / 6.0) % 1.0
+
+    return np.stack([h, s, v], axis=-1)
 
 def rgb_to_luminance(rgb):
     # luminance values go from 0 to 255
@@ -25,7 +65,7 @@ def rgb_to_gray(rgb):
 def rgb_to_hue(arr):
     # arr: uint8, shape (H, W, 3)
     rgb = arr.astype(np.float32) / 255.0
-    hsv = rgb_to_hsv(rgb)
+    hsv = rgb_to_hsv_numpy(rgb)
     hue = hsv[..., 0]
     return hue
 
